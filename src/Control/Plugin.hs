@@ -21,7 +21,6 @@ module Control.Plugin (
 import Data.Lightning
 import Control.Conduit
 import Control.Exception
-import System.IO
 import Data.Conduit
 import Data.Conduit.Combinators (sourceHandle, sinkHandle) 
 import qualified Data.ByteString as S
@@ -34,17 +33,18 @@ import Control.Monad.State
 import Control.Monad.Reader
 import Control.Concurrent hiding (yield) 
 import Network.Socket as N
+import System.IO
 
 -- | Function called on every event subscribed to in the manifest.
-type PluginApp a = PluginReq -> PluginMonad a
+type PluginApp a = PluginReq -> PluginMonad a () 
 type PluginReq = (Maybe Id, Method, Params)
 
 -- | Plugin stack contains ReaderT (ask - rpc handle & config), stateT (get/put - polymorphic state) and conduitT (yield - data exchange to core lightning.)
-type PluginMonad a = ConduitT 
+type PluginMonad a b = ConduitT 
     (Either (Res Value) PluginReq) 
     (Res Value) 
     (ReaderT PlugInfo (StateT a IO))
-    () 
+    b
 
 -- | Handle connected to lightning-rpc file (use with Control.Client) & configuration object.  
 type PlugInfo = (Handle, Init)
@@ -89,7 +89,7 @@ entry = await >>= maybe mempty (\case
     InvalidReq -> yield $ Left $ Derp ("Request Error"::Text) Nothing  
     ParseErr -> yield $ Left $ Derp ("Parser Err"::Text) Nothing )
 
-appInsert :: PluginApp a -> PluginMonad a
+appInsert :: PluginApp a -> PluginMonad a ()
 appInsert app =  await >>= maybe mempty \case  
     Left er -> yield er  
     Right pr -> app pr 
@@ -104,11 +104,11 @@ getrpc d = do
     socketToHandle soc ReadWriteMode
 
 -- | Helper function to allow node to continue. Hooks delay default node behaviour. 
-release :: Id -> PluginMonad a
+release :: Id -> PluginMonad a ()
 release = yield . Res continue
 
 -- | Respond with arbitrary Value, custom rpc hooks will pass back through to terminal.
-respond :: Value -> Id -> PluginMonad a
+respond :: Value -> Id -> PluginMonad a ()
 respond = (yield .) . Res
 
 

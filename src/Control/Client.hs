@@ -21,6 +21,8 @@ import System.IO
 import System.IO.Unsafe
 import Data.IORef
 import Network.Socket 
+import Control.Monad.Reader
+import Control.Monad.IO.Class
 import Data.Conduit hiding (connect) 
 import Data.Conduit.Combinators hiding (stdout, stderr, stdin) 
 import Data.Aeson
@@ -51,11 +53,12 @@ instance ToJSON Command where
                ]
 
 -- | Function to interface with lightning-rpc commands. First argument is a Handle to rpcfile from the readerT, second is a Command withholding Id which will automatically increment.  
-lightningCli :: Handle -> PartialCommand -> IO (Maybe (Res Value))
-lightningCli h v = do 
-    i <- atomicModifyIORef idref $ (\x -> (x,x)).(+1)
-    L.hPutStr h . encode $ v (toJSON i) 
-    runConduit $ sourceHandle h .| inConduit .| await >>= \case 
+lightningCli :: PartialCommand -> PluginMonad a (Maybe (Res Value))
+lightningCli v = do 
+    (h, _) <- ask
+    i <- liftIO $ atomicModifyIORef idref $ (\x -> (x,x)).(+1)
+    liftIO $ L.hPutStr h . encode $ v (toJSON i) 
+    liftIO $ runConduit $ sourceHandle h .| inConduit .| await >>= \case 
         (Just (Correct x)) -> pure $ Just x
         _ -> pure Nothing 
 
