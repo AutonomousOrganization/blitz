@@ -13,22 +13,6 @@ The transformer stack contains:
 - `get/put` - polymorphic state
 - `yield` - stdout to core lightning
 
-Several examples are included that are intended to be useful for (d)evelopers and node (o)perators 
-- **movelog**
-    - o - specify logfile= to create a log file with fees earned and other coin movements
-    - d - a notification is subscribed, an option is added, and the state monad is used
-- **wallet** 
-    - o - show available totals and channel balances: `lightning-cli wallet`
-    - d - a new rpc method is created
-- **routes** 
-    - o - generate routes: `lightning-cli route` 
-    - d - network graph is loaded and several rpc parameters are used
-
-Operators: the examples require option `allow-deprecated-apis=false`. To install a plugin you must: 
-    - clone this repository
-    - `stack build` 
-    - move or symlink the created executable file into the lightning directory (by default: `.lightning/plugins`) 
-    
 The main exports from the Library are `Control.Plugin`, `Control.Client`, and `Data.Lightning`. An upload and link to hackage is pending. This is a basic usage example: 
 ```haskell  
 {-# LANGUAGE 
