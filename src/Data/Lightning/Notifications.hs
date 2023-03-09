@@ -109,7 +109,7 @@ data SendPayFailure = SendPayFailure {
 instance FromJSON SendPayFailure where 
     parseJSON = singleField "sendpay_failure"
 
-data FailData = SPFData {
+data FailData = FailData {
       _id :: Int
     , payment_hash :: Text 
     , destination :: Text 
@@ -124,7 +124,7 @@ data FailData = SPFData {
     , erring_channel :: Text 
     , erring_direction :: Int 
     } deriving Generic
-instance FromJSON SPFData where
+instance FromJSON FailData where
     parseJSON = defaultParse
 
 data CoinMovement = CoinMovement {
