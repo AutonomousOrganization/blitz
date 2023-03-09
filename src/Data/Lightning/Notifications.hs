@@ -104,12 +104,12 @@ instance FromJSON SendPaySuccess where
 data SendPayFailure = SendPayFailure {
       code :: Int 
     , message :: Text
-    , _data :: SPFData
+    , _data :: FailData
     } deriving Generic 
 instance FromJSON SendPayFailure where 
     parseJSON = singleField "sendpay_failure"
 
-data SPFData = SPFData {
+data FailData = SPFData {
       _id :: Int
     , payment_hash :: Text 
     , destination :: Text 

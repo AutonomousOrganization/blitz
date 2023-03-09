@@ -8,6 +8,7 @@
 
 module Control.Client (
     lightningCli,
+    lightningCliDebug,
     Command(..),
     PartialCommand
     ) 
@@ -17,32 +18,27 @@ import Control.Plugin
 import Control.Conduit
 import Data.Lightning 
 import Data.ByteString.Lazy as L 
-import System.IO
 import System.IO.Unsafe
 import Data.IORef
-import Network.Socket 
 import Control.Monad.Reader
-import Control.Monad.IO.Class
 import Data.Conduit hiding (connect) 
 import Data.Conduit.Combinators hiding (stdout, stderr, stdin) 
 import Data.Aeson
 import Data.Text
 
-type Cln a = IO (Maybe (ParseResult (Res a)))
 type PartialCommand = Id -> Command 
 
 {-# NOINLINE idref #-} 
 idref :: IORef Int
 idref = unsafePerformIO $ newIORef 1
 
+-- commands to core lightning are defined by the set of plugins and version of core lightning so this is generic and you should refer to lightning-cli help <command> for the details of the command you are interested in. A filter object is used to specify the data you desire returned (i.e. {"id":True}) and params are the named fields of the command. 
 data Command = Command { 
       method :: Text
     , reqFilter :: Value
-    -- ^ filter specifies which data fields you want to be retured.
     , params :: Value 
     , ____id :: Value 
     } deriving (Show) 
-
 instance ToJSON Command where 
     toJSON (Command m f p i) = 
         object [ "jsonrpc" .= ("2.0" :: Text)
@@ -52,7 +48,7 @@ instance ToJSON Command where
                , "params" .= toJSON p
                ]
 
--- | Function to interface with lightning-rpc commands. First argument is a Handle to rpcfile from the readerT, second is a Command withholding Id which will automatically increment.  
+-- interface with lightning-rpc.  
 lightningCli :: PartialCommand -> PluginMonad a (Maybe (Res Value))
 lightningCli v = do 
     (h, _) <- ask
@@ -61,4 +57,11 @@ lightningCli v = do
     liftIO $ runConduit $ sourceHandle h .| inConduit .| await >>= \case 
         (Just (Correct x)) -> pure $ Just x
         _ -> pure Nothing 
+
+-- log wrapper for easier debugging during development.
+lightningCliDebug :: (String -> IO ()) -> PartialCommand -> PluginMonad a (Maybe (Res Value))
+lightningCliDebug logger v = do 
+    res@(Just (Res x _)) <- lightningCli v 
+    liftIO . logger . show $ x 
+    pure res 
 

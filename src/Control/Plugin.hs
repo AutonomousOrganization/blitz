@@ -111,6 +111,9 @@ release = yield . Res continue
 respond :: Value -> Id -> PluginMonad a ()
 respond = (yield .) . Res
 
-
 continue :: Value 
 continue = object ["result" .= ("continue" :: Text)]
+
+
+
+
