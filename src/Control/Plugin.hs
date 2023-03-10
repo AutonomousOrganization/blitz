@@ -36,8 +36,11 @@ import Network.Socket as N
 import System.IO
 
 -- | Function called on every event subscribed to in the manifest.
-type PluginApp a = PluginReq -> PluginMonad a () 
+type PluginApp a = PluginReq -> PluginMonad a ()
 type PluginReq = (Maybe Id, Method, Params)
+
+
+type InitMonad a = ReaderT PlugInfo IO a
 
 -- | Plugin stack contains ReaderT (ask - rpc handle & config), stateT (get/put - polymorphic state) and conduitT (yield - data exchange to core lightning.)
 type PluginMonad a b = ConduitT 
@@ -50,12 +53,12 @@ type PluginMonad a b = ConduitT
 type PlugInfo = (Handle, Init)
 
 -- | Function called on initialization, returned value is the initial state.
-type PluginInit a = PlugInfo -> IO a
+type PluginInit a = PluginMonad () a --PlugInfo -> IO a
 
 data StartErr = ExpectManifest | ExpectInit deriving (Show, Exception) 
 
 -- | Create main executable that can be installed as core lightning plugin. 
-plugin :: Value -> PluginInit s -> PluginApp s -> IO ()
+plugin :: Value -> InitMonad s -> PluginApp s -> IO ()
 plugin manifest start app = do 
     liftIO $ mapM_ (`hSetBuffering` LineBuffering) [stdin,stdout] 
     runOnce $ await >>= \case 
@@ -65,18 +68,20 @@ plugin manifest start app = do
         (Just (Right (Just i, "init", v))) -> case fromJSON v of 
             Success xi@(Init{..}) -> do 
                 h  <- liftIO $ getrpc $ getRpcPath configuration
-                s' <- liftIO $ start (h, xi)
+                s' <- liftIO $ runStartup (h, xi) start
                 _ <- liftIO.forkIO $ runPlugin (h, xi) s' app 
                 yield $ Res continue i
             _ -> throw ExpectInit 
             where getRpcPath conf = lightning5dir conf <> "/" <> rpc5file conf
     threadDelay maxBound
 
+-- runStartup :: _ -- PlugInfo -> PluginMonad () a -> IO a --  PluginMonad () () -> PluginMonad nfo ()  
+runStartup re = (`runReaderT` re)  
+
 runPlugin :: PlugInfo -> s -> PluginApp s -> IO () 
 runPlugin re st = (`evalStateT` st) . (`runReaderT` re) . forever . runConduit . runner
-    where 
-    runner app =  
-        sourceHandle stdin .| inConduit .| entry .| appInsert app .| exit .| sinkHandle stdout 
+    where
+    runner app = sourceHandle stdin .| inConduit .| entry .| appInsert app .| exit .| sinkHandle stdout 
 
 runOnce :: ConduitT (Either (Res Value) PluginReq) (Res Value) IO () -> IO ()
 runOnce = runConduit.runner
