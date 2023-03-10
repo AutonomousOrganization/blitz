@@ -10,10 +10,11 @@
 module Control.Plugin (
     plugin, 
     release, 
+    reject,
     respond, 
     PluginApp, 
     PluginMonad,
-    PluginInit,
+    InitMonad,
     PluginReq, 
     PlugInfo
     ) where 
@@ -40,6 +41,7 @@ type PluginApp a = PluginReq -> PluginMonad a ()
 type PluginReq = (Maybe Id, Method, Params)
 
 
+-- | Function called on initialization, returned value is the initial state.
 type InitMonad a = ReaderT PlugInfo IO a
 
 -- | Plugin stack contains ReaderT (ask - rpc handle & config), stateT (get/put - polymorphic state) and conduitT (yield - data exchange to core lightning.)
@@ -51,9 +53,6 @@ type PluginMonad a b = ConduitT
 
 -- | Handle connected to lightning-rpc file (use with Control.Client) & configuration object.  
 type PlugInfo = (Handle, Init)
-
--- | Function called on initialization, returned value is the initial state.
-type PluginInit a = PluginMonad () a --PlugInfo -> IO a
 
 data StartErr = ExpectManifest | ExpectInit deriving (Show, Exception) 
 
@@ -73,9 +72,10 @@ plugin manifest start app = do
                 yield $ Res continue i
             _ -> throw ExpectInit 
             where getRpcPath conf = lightning5dir conf <> "/" <> rpc5file conf
+        _ -> throw ExpectInit 
     threadDelay maxBound
 
--- runStartup :: _ -- PlugInfo -> PluginMonad () a -> IO a --  PluginMonad () () -> PluginMonad nfo ()  
+runStartup :: PlugInfo -> InitMonad a -> IO a 
 runStartup re = (`runReaderT` re)  
 
 runPlugin :: PlugInfo -> s -> PluginApp s -> IO () 
@@ -112,13 +112,12 @@ getrpc d = do
 release :: Id -> PluginMonad a ()
 release = yield . Res continue
 
+reject :: Id -> PluginMonad a ()
+reject = yield . Res (object ["result" .= ("reject" :: Text)])
+
 -- | Respond with arbitrary Value, custom rpc hooks will pass back through to terminal.
 respond :: Value -> Id -> PluginMonad a ()
 respond = (yield .) . Res
 
 continue :: Value 
 continue = object ["result" .= ("continue" :: Text)]
-
-
-
-
