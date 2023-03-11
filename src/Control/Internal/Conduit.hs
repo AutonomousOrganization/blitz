@@ -4,16 +4,14 @@
     , FlexibleContexts
     , DeriveGeneric  
     , OverloadedStrings 
- #-}
-
-module Control.Conduit (
+    #-}
+module Control.Internal.Conduit (
     inConduit, 
     ParseResult(..), 
     Res(..), 
     Req(..) 
     ) where 
 
-import Data.Lightning 
 import GHC.Generics
 import Data.Text (Text)
 import Control.Applicative  ((<|>))
@@ -24,6 +22,7 @@ import qualified Data.ByteString as S
 import Data.Conduit 
 import Data.Attoparsec.ByteString 
 
+-- | Decode from bytestring into a JSON object. Simplified from hackage package: json-rpc 
 inConduit :: (Monad n) => (FromJSON a) => ConduitT S.ByteString (ParseResult a) n ()
 inConduit = evalStateT l Nothing
     where 

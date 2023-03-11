@@ -28,7 +28,7 @@ source-repository head
 library
   exposed-modules:
       Control.Client
-      Control.Conduit
+      Control.Internal.Conduit
       Control.Plugin
       Data.Lightning
       Data.Lightning.Generic

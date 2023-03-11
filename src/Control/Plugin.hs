@@ -20,7 +20,7 @@ module Control.Plugin (
     ) where 
 
 import Data.Lightning
-import Control.Conduit
+import Control.Internal.Conduit
 import Control.Exception
 import Data.Conduit
 import Data.Conduit.Combinators (sourceHandle, sinkHandle) 

@@ -11,12 +11,13 @@ module Control.Client (
     lightningCli,
     lightningCliDebug,
     Command(..),
-    PartialCommand
+    PartialCommand, 
+    Res(..)
     ) 
     where 
 
 import Control.Plugin
-import Control.Conduit
+import Control.Internal.Conduit
 import Data.Lightning 
 import Data.ByteString.Lazy as L 
 import System.IO.Unsafe

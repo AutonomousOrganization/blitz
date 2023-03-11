@@ -1,66 +1,64 @@
 
 ## Core Lightning Plug
 
-Core lightning is a daemon ([lightningd](https://lightning.readthedocs.io/PLUGINS.html)) that operates payment channels that allow you to send and receive bitcoin nearly instantly, with nearly zero fees with a high level of privacy. It does not compromise on any of the strengths of layer 1 bitcoin: no censorship, free speech, individual sovereignty, and impossible debasement. In fact it strengthens bitcoin because it encourages the operation of fully validating nodes, lightningd requires bitcoind. Clplug is a Haskell library that allows you to easily create extensions (called plugins) that extend or augment its functionality. 
+Create core lightning ([lightningd](https://lightning.readthedocs.io/PLUGINS.html)) plugins in haskell. 
 
-To create a plugin you only need to define three arguments:
-- `Manifest :: Value` - configuration of the interface with core lightning.
-- `PluginInit :: PlugInfo -> IO a` - startup function that returns the starting state
-- `PluginApp ::  (Maybe Id, Method, Params) -> PluginMonad` - data handler function
+To get started you need to import the Library. It is on hackage as [clplug](https://hackage.haskell.org/package/clplug) or you can load it from github in the stack.yaml: 
+```
+extra-deps:
+- git: https://github.com/autonomousorganization/blitz.git
+  commit: a916dd3d74780e1023b161b4e85773ccc06051d4
+```
+Once the library is imported there are two external modules. Data.Lightning is all of the data types for the manifest, the notification and the hooks. Control.Plugin contains the monadic context and interface to your node. 
 
-The transformer stack contains: 
-- `ask` - a handle to lightning-rpc and environment info.
-- `get/put` - polymorphic state
-- `yield` - stdout to core lightning
+A [manifest](https://lightning.readthedocs.io/PLUGINS.html#the-getmanifest-method) defines the interface your plugin will have with core lightning. 
 
-The main exports from the Library are `Control.Plugin`, `Control.Client`, and `Data.Lightning`. An upload and link to hackage is pending. This is a basic usage example: 
-```haskell  
-{-# LANGUAGE 
-      OverloadedStrings 
-    , FlexibleContexts 
-    , ViewPatterns
-    , RecordWildCards
-#-} 
-
-module Main (main) where
-
--- from clplug
-import Data.Lightning 
-import Control.Plugin  
-import Control.Conduit
---
-
-import Data.Conduit 
+```
 import Data.Aeson
-import Data.Text
-
-main = plugin manifest appState app
-
-manifest :: Value 
+import Data.Lightning
 manifest = object [
-      "dynamic" .= True
-    , "subscriptions" .= (["channel_opened"] :: [Text] ) 
-    , "options" .= ([]::[Option])
-    , "rpcmethods" .= ([]) 
-    , "hooks" .= ([]::[Hook])
-    , "featurebits" .= object [ ]
-    , "notifications" .= ([]::[Notification])
-    ] 
+       "dynamic" .= True
+     , "subscriptions" .= ([] :: [Text] )
+     , "options" .= ([]::[Option])
+     , "rpcmethods" .= ([
+         , RpcMethod "command" "[label]" "description" Nothing False
+         ])
+     , "hooks" .= ([Hook "invoice_payment" Nothing])
+     , "featurebits" .= object [ ]
+     , "notifications" .= ([]::[Notification])
+     ]
+```
 
-app :: PluginApp () 
-app (Nothing, "channel_opened", fromJSON -> Success (ChannelOpened {..})) = do
-    doublespend funding_txid 
-    where doublespend _ = pure ()
+A start function runs in the InitMonad, it has access to a reader (ask) and to lightningCli. The data that returns from this function will initialize the state that is shared in the PluginMonad. If you want to run a service fork a thread within this function. 
+The lightningCli function interfaces to core lightnings rpc. The available functions depend on your version of core lightning and the set of plugins you have installed. You need to pass a Command that defines the data you want returned in a [filter](https://lightning.readthedocs.io/lightningd-rpc.7.html?highlight=filter#field-filtering). 
 
-appState = pure () 
-```      
+```
+import Control.Plugin 
+import Control.Client
+start = do 
+    (rpcHandle, Init options config) <- ask
+    Just response <- lightningCli (Command "getinfo" filter params)
+    _ <- liftIO . forkIO $ < service > 
+    return < state >
+```
 
-Useful areas of  exploration and research are:
-- fee optimization
-- route selection
-- economic rebalancing
-- accidental channel closes
+An app function runs every time data comes in from the plugin. You define handlers that processes the data. If an id is present that means that core lightning is expecting a response and default node operation or the operation of other plugins may be pending your response. Use release to allow default to continue, reject to abort default behavior, and respond to send a custom response which in the case of custom rpcmethods will pass through back to the user. 
 
-##### Donation bitcoin addr: bc1q5xx9mathvsl0unfwa3jlph379n46vu9cletshr
+```
+app :: (Maybe Id, Method, Params) -> PluginMonad a b
+app (Just i, "method", params) = 
+    if contition 
+        then release i 
+        else reject i      
+``` 
 
-lightning only scales bitcoin if people run nodes
+Finally use the plugin function to create an executable that can be installed as a plugin! 
+
+```
+main :: IO ()
+main = plugin manifest start app
+
+```
+
+##### tipjar: bc1q5xx9mathvsl0unfwa3jlph379n46vu9cletshr
+
